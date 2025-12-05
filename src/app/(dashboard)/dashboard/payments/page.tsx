@@ -71,11 +71,14 @@ export default function PaymentsPage() {
       const response = await fetch(`/api/payments?${params}`)
       const result = await response.json()
 
-      if (result.success) {
+      if (result.success && result.data) {
         setPayments(result.data)
+      } else {
+        setPayments([])
       }
     } catch (err) {
       console.error('Error:', err)
+      setPayments([])
     } finally {
       setLoading(false)
     }
