@@ -8,6 +8,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from '@/components/ui/card'
 import {
   Table,
@@ -18,63 +19,49 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
   Search,
   Package,
-  TrendingUp,
-  TrendingDown,
   AlertTriangle,
-  ArrowDownLeft,
-  ArrowUpRight,
   RefreshCw
 } from 'lucide-react'
+import Link from 'next/link'
 
 export default function InventoryPage() {
-  const [activeTab, setActiveTab] = useState('movements')
   const [search, setSearch] = useState('')
-  const [movements, setMovements] = useState<any[]>([])
+  const [products, setProducts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchMovements()
+    fetchProducts()
   }, [])
 
-  const fetchMovements = async () => {
+  const fetchProducts = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/inventory/movements')
+      const response = await fetch('/api/products')
       const result = await response.json()
-      if (result.success) {
-        setMovements(result.data)
+      if (result.success && result.data) {
+        setProducts(result.data)
+      } else {
+        setProducts([])
       }
     } catch (error) {
       console.error('Error:', error)
+      setProducts([])
     } finally {
       setLoading(false)
     }
   }
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('th-TH', {
-      day: 'numeric',
-      month: 'short',
-      year: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
-
-  const movementTypeConfig: Record<string, { label: string; icon: any; color: string }> = {
-    in: { label: 'รับเข้า', icon: ArrowDownLeft, color: 'text-green-600' },
-    out: { label: 'จ่ายออก', icon: ArrowUpRight, color: 'text-red-600' },
-    adjust: { label: 'ปรับปรุง', icon: RefreshCw, color: 'text-blue-600' },
-  }
-
-  const filteredMovements = movements.filter(m => 
-    m.product?.name?.toLowerCase().includes(search.toLowerCase()) ||
-    m.reference?.toLowerCase().includes(search.toLowerCase())
+  const filteredProducts = products.filter(p => 
+    p.name?.toLowerCase().includes(search.toLowerCase()) ||
+    p.sku?.toLowerCase().includes(search.toLowerCase())
   )
+
+  // Count low stock products (stock < 10)
+  const lowStockProducts = products.filter(p => (p.stockQuantity || 0) < 10 && (p.stockQuantity || 0) > 0)
+  const outOfStockProducts = products.filter(p => (p.stockQuantity || 0) <= 0)
 
   return (
     <div className="space-y-6">
@@ -82,56 +69,42 @@ export default function InventoryPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">คลังสินค้า</h1>
-          <p className="text-muted-foreground">ติดตามความเคลื่อนไหวและสต็อกสินค้า</p>
+          <p className="text-muted-foreground">ติดตามสต็อกสินค้า</p>
         </div>
-        <Button onClick={fetchMovements}>
+        <Button onClick={fetchProducts} variant="outline">
           <RefreshCw className="mr-2 h-4 w-4" />
           รีเฟรช
         </Button>
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card className="border-0 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">รายการเคลื่อนไหว</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">สินค้าทั้งหมด</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{movements.length}</div>
+            <div className="text-2xl font-bold">{products.length}</div>
           </CardContent>
         </Card>
         <Card className="border-0 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-green-600">รับเข้า</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {movements.filter(m => m.type === 'in').length}
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-red-600">จ่ายออก</CardTitle>
-            <TrendingDown className="h-4 w-4 text-red-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">
-              {movements.filter(m => m.type === 'out').length}
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-0 shadow-sm">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-orange-600">ปรับปรุง</CardTitle>
+            <CardTitle className="text-sm font-medium text-orange-600">สต็อกต่ำ</CardTitle>
             <AlertTriangle className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
-              {movements.filter(m => m.type === 'adjust').length}
-            </div>
+            <div className="text-2xl font-bold text-orange-600">{lowStockProducts.length}</div>
+            <p className="text-xs text-muted-foreground">จำนวนน้อยกว่า 10</p>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-red-600">หมดสต็อก</CardTitle>
+            <Package className="h-4 w-4 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{outOfStockProducts.length}</div>
           </CardContent>
         </Card>
       </div>
@@ -149,18 +122,21 @@ export default function InventoryPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
+            <Button asChild>
+              <Link href="/dashboard/products">จัดการสินค้า</Link>
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead>วันที่</TableHead>
-                <TableHead>สินค้า</TableHead>
-                <TableHead>ประเภท</TableHead>
-                <TableHead className="text-right">จำนวน</TableHead>
-                <TableHead>เอกสารอ้างอิง</TableHead>
-                <TableHead>หมายเหตุ</TableHead>
+                <TableHead>รหัสสินค้า</TableHead>
+                <TableHead>ชื่อสินค้า</TableHead>
+                <TableHead>หมวดหมู่</TableHead>
+                <TableHead className="text-right">สต็อก</TableHead>
+                <TableHead>หน่วย</TableHead>
+                <TableHead>สถานะ</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -172,42 +148,52 @@ export default function InventoryPage() {
                     </div>
                   </TableCell>
                 </TableRow>
-              ) : filteredMovements.length === 0 ? (
+              ) : filteredProducts.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-12">
                     <Package className="mx-auto h-12 w-12 text-muted-foreground/50" />
-                    <p className="mt-4 text-muted-foreground">ยังไม่มีความเคลื่อนไหว</p>
+                    <p className="mt-4 text-muted-foreground">ยังไม่มีสินค้า</p>
+                    <Button variant="link" asChild className="mt-2">
+                      <Link href="/dashboard/products">เพิ่มสินค้าใหม่</Link>
+                    </Button>
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredMovements.map((movement) => {
-                  const config = movementTypeConfig[movement.type]
-                  const Icon = config?.icon || Package
+                filteredProducts.map((product) => {
+                  const stock = product.stockQuantity || 0
+                  let stockStatus = { label: 'ปกติ', color: 'bg-green-100 text-green-700' }
+                  if (stock <= 0) {
+                    stockStatus = { label: 'หมด', color: 'bg-red-100 text-red-700' }
+                  } else if (stock < 10) {
+                    stockStatus = { label: 'ต่ำ', color: 'bg-orange-100 text-orange-700' }
+                  }
                   
                   return (
-                    <TableRow key={movement.id} className="hover:bg-muted/50">
+                    <TableRow key={product.id} className="hover:bg-muted/50">
+                      <TableCell className="font-mono text-sm">
+                        {product.sku || '-'}
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-medium">{product.name}</div>
+                        {product.description && (
+                          <div className="text-xs text-muted-foreground truncate max-w-xs">
+                            {product.description}
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {formatDate(movement.createdAt)}
+                        {product.category?.name || '-'}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {stock}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {product.unit || '-'}
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium">{movement.product?.name || '-'}</div>
-                        <div className="text-xs text-muted-foreground">{movement.product?.sku || ''}</div>
-                      </TableCell>
-                      <TableCell>
-                        <div className={`flex items-center gap-2 ${config?.color}`}>
-                          <Icon className="h-4 w-4" />
-                          <span className="font-medium">{config?.label}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className={`text-right font-medium ${config?.color}`}>
-                        {movement.type === 'in' || movement.type === 'adjust' ? '+' : '-'}
-                        {movement.quantity}
-                      </TableCell>
-                      <TableCell>
-                        {movement.reference || movement.document?.documentNumber || '-'}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground text-sm">
-                        {movement.notes || '-'}
+                        <Badge className={stockStatus.color}>
+                          {stockStatus.label}
+                        </Badge>
                       </TableCell>
                     </TableRow>
                   )
@@ -217,7 +203,16 @@ export default function InventoryPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Info Card */}
+      <Card className="border-dashed border-2">
+        <CardHeader>
+          <CardTitle className="text-lg">💡 การติดตามสต็อก</CardTitle>
+          <CardDescription>
+            สต็อกจะถูกอัพเดทอัตโนมัติเมื่อสร้างเอกสารขาย/ซื้อ (ฟีเจอร์นี้กำลังพัฒนา)
+          </CardDescription>
+        </CardHeader>
+      </Card>
     </div>
   )
 }
-
