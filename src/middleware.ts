@@ -9,9 +9,38 @@ const JWT_SECRET = new TextEncoder().encode(
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Skip middleware for API auth routes
-  if (pathname.startsWith('/api/auth/')) {
+  // Skip middleware for public API routes
+  if (pathname.startsWith('/api/auth/') || pathname === '/api/health') {
     return NextResponse.next()
+  }
+  
+  // For other API routes - verify token and add headers
+  if (pathname.startsWith('/api/')) {
+    const token = request.cookies.get('auth-token')?.value
+    
+    if (!token) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+    
+    try {
+      const verified = await jwtVerify(token, JWT_SECRET)
+      const requestHeaders = new Headers(request.headers)
+      requestHeaders.set('x-user-id', verified.payload.userId as string)
+      requestHeaders.set('x-user-email', verified.payload.email as string)
+      requestHeaders.set('x-tenant-id', verified.payload.tenantId as string)
+      
+      return NextResponse.next({
+        request: { headers: requestHeaders },
+      })
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid token' },
+        { status: 401 }
+      )
+    }
   }
 
   // Public paths that don't require authentication
