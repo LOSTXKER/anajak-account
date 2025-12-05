@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -38,7 +38,7 @@ const paymentMethods = [
   { value: 'credit_card', label: '💳 บัตรเครดิต' },
 ]
 
-export default function NewPaymentPage() {
+function NewPaymentPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const paymentType = searchParams.get('type') || 'receive'
@@ -385,5 +385,13 @@ export default function NewPaymentPage() {
         </div>
       </form>
     </div>
+  )
+}
+
+export default function NewPaymentPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>}>
+      <NewPaymentPageContent />
+    </Suspense>
   )
 }

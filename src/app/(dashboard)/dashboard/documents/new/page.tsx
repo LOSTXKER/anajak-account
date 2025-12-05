@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Plus, Trash2, Save, Send, FileText, Calculator } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -52,7 +52,7 @@ const documentTypeLabels: Record<string, { label: string; icon: string; color: s
   purchase_order: { label: 'ใบสั่งซื้อ', icon: '📋', color: 'text-orange-600' },
 }
 
-export default function NewDocumentPage() {
+function NewDocumentPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const documentType = searchParams.get('type') || 'quotation'
@@ -616,5 +616,13 @@ export default function NewDocumentPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function NewDocumentPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>}>
+      <NewDocumentPageContent />
+    </Suspense>
   )
 }
