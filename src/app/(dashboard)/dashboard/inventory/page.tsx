@@ -39,6 +39,7 @@ export default function InventoryPage() {
   const fetchProducts = async () => {
     try {
       setLoading(true)
+      // Fetch products for stock view
       const response = await fetch('/api/products')
       const result = await response.json()
       if (result.success && result.data) {

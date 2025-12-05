@@ -106,7 +106,10 @@ export default function DocumentViewPage() {
       const response = await fetch(`/api/documents/${documentId}/send-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(emailForm),
+        body: JSON.stringify({
+          email: emailForm.recipientEmail,
+          message: emailForm.message,
+        }),
       })
       const result = await response.json()
 
