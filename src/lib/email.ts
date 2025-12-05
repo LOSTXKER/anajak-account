@@ -83,8 +83,8 @@ export async function sendDocumentEmail(params: SendDocumentEmailParams) {
       `,
     })
 
-    console.log('✅ Email sent:', data.id)
-    return { success: true, data }
+    console.log('✅ Email sent:', data)
+    return { success: true, data: data.data }
   } catch (error: any) {
     console.error('❌ Email error:', error)
     return { success: false, error: error.message }
