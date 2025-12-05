@@ -95,10 +95,14 @@ export async function POST(request: NextRequest) {
         })),
       },
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Login error:', error)
     return NextResponse.json(
-      { error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ' },
+      { 
+        error: 'เกิดข้อผิดพลาดในการเข้าสู่ระบบ',
+        details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+        dbError: error?.code || undefined,
+      },
       { status: 500 }
     )
   }

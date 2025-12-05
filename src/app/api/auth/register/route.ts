@@ -107,10 +107,14 @@ export async function POST(request: NextRequest) {
         },
       },
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Register error:', error)
     return NextResponse.json(
-      { error: 'เกิดข้อผิดพลาดในการสมัครสมาชิก' },
+      { 
+        error: 'เกิดข้อผิดพลาดในการสมัครสมาชิก',
+        code: error?.code,
+        message: error?.message,
+      },
       { status: 500 }
     )
   }
