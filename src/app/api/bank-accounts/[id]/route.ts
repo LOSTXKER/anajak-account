@@ -3,9 +3,10 @@ import { prisma } from '@/lib/prisma'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const tenantId = request.headers.get('x-tenant-id')
     if (!tenantId) {
       return NextResponse.json(
@@ -16,7 +17,7 @@ export async function GET(
 
     const bankAccount = await prisma.bankAccount.findFirst({
       where: {
-        id: params.id,
+        id: id,
         companyId: tenantId,
       },
     })
@@ -43,9 +44,10 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const tenantId = request.headers.get('x-tenant-id')
     if (!tenantId) {
       return NextResponse.json(
@@ -58,7 +60,7 @@ export async function PUT(
 
     const bankAccount = await prisma.bankAccount.updateMany({
       where: {
-        id: params.id,
+        id: id,
         companyId: tenantId,
       },
       data,
@@ -80,9 +82,10 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const tenantId = request.headers.get('x-tenant-id')
     if (!tenantId) {
       return NextResponse.json(
@@ -93,7 +96,7 @@ export async function DELETE(
 
     await prisma.bankAccount.deleteMany({
       where: {
-        id: params.id,
+        id: id,
         companyId: tenantId,
       },
     })
@@ -110,4 +113,3 @@ export async function DELETE(
     )
   }
 }
-

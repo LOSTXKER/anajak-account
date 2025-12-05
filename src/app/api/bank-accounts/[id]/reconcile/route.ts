@@ -7,9 +7,10 @@ import { prisma } from '@/lib/prisma'
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const tenantId = request.headers.get('x-tenant-id')
     if (!tenantId) {
       return NextResponse.json(
@@ -24,7 +25,7 @@ export async function POST(
     // Update bank account
     await prisma.bankAccount.updateMany({
       where: {
-        id: params.id,
+        id: id,
         companyId: tenantId,
       },
       data: {
@@ -36,7 +37,7 @@ export async function POST(
     // Create reconciliation record
     const reconciliation = await prisma.bankReconciliation.create({
       data: {
-        bankAccountId: params.id,
+        bankAccountId: id,
         reconciledDate: new Date(reconciledDate),
         closingBalance,
         matchedCount: matchedTransactions?.length || 0,
@@ -64,9 +65,10 @@ export async function POST(
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const tenantId = request.headers.get('x-tenant-id')
     if (!tenantId) {
       return NextResponse.json(
@@ -77,7 +79,7 @@ export async function GET(
 
     const reconciliations = await prisma.bankReconciliation.findMany({
       where: {
-        bankAccountId: params.id,
+        bankAccountId: id,
       },
       orderBy: {
         reconciledDate: 'desc',
@@ -97,4 +99,3 @@ export async function GET(
     )
   }
 }
-

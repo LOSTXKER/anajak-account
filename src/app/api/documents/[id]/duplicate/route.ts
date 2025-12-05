@@ -3,9 +3,10 @@ import { prisma } from '@/lib/prisma'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: documentId } = await params
     const tenantId = request.headers.get('x-tenant-id')
     if (!tenantId) {
       return NextResponse.json(
@@ -13,8 +14,6 @@ export async function POST(
         { status: 401 }
       )
     }
-
-    const documentId = params.id
 
     // Get source document with line items
     const sourceDoc = await prisma.document.findFirst({
@@ -125,4 +124,3 @@ function getDocumentPrefix(type: string): string {
   }
   return prefixes[type] || 'DOC'
 }
-

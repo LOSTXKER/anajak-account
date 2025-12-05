@@ -4,9 +4,10 @@ import { prisma } from '@/lib/prisma'
 // GET /api/documents/:id - Get single document
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const tenantId = request.headers.get('x-tenant-id')
 
     if (!tenantId) {
@@ -18,7 +19,7 @@ export async function GET(
 
     const document = await prisma.document.findFirst({
       where: {
-        id: params.id,
+        id: id,
         companyId: tenantId,
       },
       include: {
@@ -71,9 +72,10 @@ export async function GET(
 // PUT /api/documents/:id - Update document
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const tenantId = request.headers.get('x-tenant-id')
     const userId = request.headers.get('x-user-id')
 
@@ -89,7 +91,7 @@ export async function PUT(
     // Check if document exists and belongs to tenant
     const existingDoc = await prisma.document.findFirst({
       where: {
-        id: params.id,
+        id: id,
         companyId: tenantId,
       },
     })
@@ -127,12 +129,12 @@ export async function PUT(
 
     // Delete old line items and create new ones
     await prisma.documentLineItem.deleteMany({
-      where: { documentId: params.id },
+      where: { documentId: id },
     })
 
     // Update document
     const document = await prisma.document.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         contactId,
         issueDate: issueDate ? new Date(issueDate) : undefined,
@@ -187,9 +189,10 @@ export async function PUT(
 // DELETE /api/documents/:id - Delete document
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const tenantId = request.headers.get('x-tenant-id')
 
     if (!tenantId) {
@@ -202,7 +205,7 @@ export async function DELETE(
     // Check if document exists and belongs to tenant
     const document = await prisma.document.findFirst({
       where: {
-        id: params.id,
+        id: id,
         companyId: tenantId,
       },
     })
@@ -224,13 +227,13 @@ export async function DELETE(
 
     // Soft delete by setting status to cancelled
     await prisma.document.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         status: 'cancelled',
       },
     })
 
-    console.log('✅ Document deleted (cancelled):', params.id)
+    console.log('✅ Document deleted (cancelled):', id)
 
     return NextResponse.json({
       success: true,
@@ -244,4 +247,3 @@ export async function DELETE(
     )
   }
 }
-

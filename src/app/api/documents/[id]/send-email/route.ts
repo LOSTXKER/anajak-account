@@ -4,9 +4,10 @@ import { sendDocumentEmail } from '@/lib/email'
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: documentId } = await params
     const tenantId = request.headers.get('x-tenant-id')
     if (!tenantId) {
       return NextResponse.json(
@@ -16,7 +17,6 @@ export async function POST(
     }
 
     const { recipientEmail, message } = await request.json()
-    const documentId = params.id
 
     // Get document with contact
     const document = await prisma.document.findFirst({
@@ -81,4 +81,3 @@ export async function POST(
     )
   }
 }
-

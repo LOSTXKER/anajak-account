@@ -4,9 +4,10 @@ import { prisma } from '@/lib/prisma'
 // GET /api/payments/:id - Get single payment
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const tenantId = request.headers.get('x-tenant-id')
 
     if (!tenantId) {
@@ -18,7 +19,7 @@ export async function GET(
 
     const payment = await prisma.payment.findFirst({
       where: {
-        id: params.id,
+        id: id,
         companyId: tenantId,
       },
       include: {
@@ -67,9 +68,10 @@ export async function GET(
 // DELETE /api/payments/:id - Delete payment
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const tenantId = request.headers.get('x-tenant-id')
 
     if (!tenantId) {
@@ -82,7 +84,7 @@ export async function DELETE(
     // Check if payment exists
     const payment = await prisma.payment.findFirst({
       where: {
-        id: params.id,
+        id: id,
         companyId: tenantId,
       },
       include: {
@@ -104,7 +106,7 @@ export async function DELETE(
         include: {
           payments: {
             where: {
-              id: { not: params.id },
+              id: { not: id },
             },
           },
         },
@@ -130,15 +132,15 @@ export async function DELETE(
 
     // Delete payment items first
     await prisma.paymentItem.deleteMany({
-      where: { paymentId: params.id },
+      where: { paymentId: id },
     })
 
     // Delete payment
     await prisma.payment.delete({
-      where: { id: params.id },
+      where: { id: id },
     })
 
-    console.log('✅ Payment deleted:', params.id)
+    console.log('✅ Payment deleted:', id)
 
     return NextResponse.json({
       success: true,
@@ -152,4 +154,3 @@ export async function DELETE(
     )
   }
 }
-
