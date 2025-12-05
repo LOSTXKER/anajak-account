@@ -40,13 +40,6 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         accountType: true,
-        parent: {
-          select: {
-            id: true,
-            code: true,
-            name: true,
-          },
-        },
       },
       orderBy: [
         { code: 'asc' },
@@ -141,7 +134,6 @@ export async function POST(request: NextRequest) {
       },
       include: {
         accountType: true,
-        parent: true,
       },
     })
 
@@ -180,4 +172,3 @@ async function calculateAccountBalance(accountId: string) {
     balance: debit - credit,
   }
 }
-
