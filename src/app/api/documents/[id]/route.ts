@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-// GET /api/documents/:id - Get single document
+// GET /api/documents/:id
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -19,17 +19,13 @@ export async function GET(
 
     const document = await prisma.document.findFirst({
       where: {
-        id: id,
+        id,
         companyId: tenantId,
       },
       include: {
-        contact: {
-          include: {
-            addresses: true,
-          },
-        },
         documentType: true,
-        lineItems: {
+        contact: true,
+        lines: {
           include: {
             product: true,
           },
@@ -37,8 +33,7 @@ export async function GET(
             lineNumber: 'asc',
           },
         },
-        payments: true,
-        createdBy: {
+        creator: {
           select: {
             id: true,
             firstName: true,
@@ -69,7 +64,7 @@ export async function GET(
   }
 }
 
-// PUT /api/documents/:id - Update document
+// PUT /api/documents/:id
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -77,9 +72,8 @@ export async function PUT(
   try {
     const { id } = await params
     const tenantId = request.headers.get('x-tenant-id')
-    const userId = request.headers.get('x-user-id')
 
-    if (!tenantId || !userId) {
+    if (!tenantId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -88,10 +82,10 @@ export async function PUT(
 
     const body = await request.json()
 
-    // Check if document exists and belongs to tenant
+    // Check document exists
     const existingDoc = await prisma.document.findFirst({
       where: {
-        id: id,
+        id,
         companyId: tenantId,
       },
     })
@@ -103,7 +97,6 @@ export async function PUT(
       )
     }
 
-    // Cannot edit if document is paid
     if (existingDoc.status === 'paid') {
       return NextResponse.json(
         { error: 'ไม่สามารถแก้ไขเอกสารที่ชำระเงินแล้ว' },
@@ -113,72 +106,70 @@ export async function PUT(
 
     const {
       contactId,
-      issueDate,
+      contactName,
+      contactAddress,
+      documentDate,
       dueDate,
       referenceNumber,
       notes,
-      terms,
-      lineItems,
+      lines,
       subtotal,
       discountAmount,
       vatAmount,
-      withholdingTaxAmount,
+      whtAmount,
       totalAmount,
       status,
     } = body
 
-    // Delete old line items and create new ones
-    await prisma.documentLineItem.deleteMany({
+    // Delete old lines
+    await prisma.documentLine.deleteMany({
       where: { documentId: id },
     })
 
     // Update document
     const document = await prisma.document.update({
-      where: { id: id },
+      where: { id },
       data: {
         contactId,
-        issueDate: issueDate ? new Date(issueDate) : undefined,
+        contactName,
+        contactAddress,
+        documentDate: documentDate ? new Date(documentDate) : undefined,
         dueDate: dueDate ? new Date(dueDate) : null,
         referenceNumber,
         notes,
-        terms,
-        subtotalAmount: subtotal,
+        subtotal: subtotal || 0,
         discountAmount: discountAmount || 0,
-        taxAmount: vatAmount || 0,
-        withholdingTaxAmount: withholdingTaxAmount || 0,
-        totalAmount,
+        vatAmount: vatAmount || 0,
+        whtAmount: whtAmount || 0,
+        totalAmount: totalAmount || 0,
         status: status || existingDoc.status,
-        lineItems: {
-          create: lineItems.map((item: any, index: number) => ({
+        lines: {
+          create: (lines || []).map((item: any, index: number) => ({
             lineNumber: index + 1,
             productId: item.productId,
-            description: item.description || item.productName,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
+            productCode: item.productCode,
+            productName: item.productName || '',
+            description: item.description,
+            quantity: item.quantity || 1,
+            unitPrice: item.unitPrice || 0,
             discountAmount: item.discountAmount || 0,
-            amount: item.amount,
+            amount: item.amount || 0,
           })),
         },
       },
       include: {
-        contact: true,
         documentType: true,
-        lineItems: {
-          include: {
-            product: true,
-          },
-        },
+        contact: true,
+        lines: true,
       },
     })
-
-    console.log('✅ Document updated:', document.id)
 
     return NextResponse.json({
       success: true,
       data: document,
     })
   } catch (error) {
-    console.error('❌ Error updating document:', error)
+    console.error('Error updating document:', error)
     return NextResponse.json(
       { error: 'เกิดข้อผิดพลาดในการอัพเดทเอกสาร' },
       { status: 500 }
@@ -186,7 +177,7 @@ export async function PUT(
   }
 }
 
-// DELETE /api/documents/:id - Delete document
+// DELETE /api/documents/:id
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -202,10 +193,9 @@ export async function DELETE(
       )
     }
 
-    // Check if document exists and belongs to tenant
     const document = await prisma.document.findFirst({
       where: {
-        id: id,
+        id,
         companyId: tenantId,
       },
     })
@@ -217,7 +207,6 @@ export async function DELETE(
       )
     }
 
-    // Cannot delete if document is paid or has payments
     if (document.status === 'paid') {
       return NextResponse.json(
         { error: 'ไม่สามารถลบเอกสารที่ชำระเงินแล้ว' },
@@ -225,22 +214,21 @@ export async function DELETE(
       )
     }
 
-    // Soft delete by setting status to cancelled
+    // Soft delete
     await prisma.document.update({
-      where: { id: id },
+      where: { id },
       data: {
         status: 'cancelled',
+        voidedAt: new Date(),
       },
     })
-
-    console.log('✅ Document deleted (cancelled):', id)
 
     return NextResponse.json({
       success: true,
       message: 'ยกเลิกเอกสารเรียบร้อยแล้ว',
     })
   } catch (error) {
-    console.error('❌ Error deleting document:', error)
+    console.error('Error deleting document:', error)
     return NextResponse.json(
       { error: 'เกิดข้อผิดพลาดในการลบเอกสาร' },
       { status: 500 }

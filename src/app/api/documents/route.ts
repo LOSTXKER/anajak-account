@@ -1,18 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { processDocumentStockMovements } from '@/lib/inventory'
 
-// GET /api/documents - List all documents
+// GET /api/documents - List documents
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const search = searchParams.get('search') || ''
-    const type = searchParams.get('type')
     const status = searchParams.get('status')
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '20')
+    const typeId = searchParams.get('typeId')
 
-    // Get tenantId from headers (set by middleware)
     const tenantId = request.headers.get('x-tenant-id')
     
     if (!tenantId) {
@@ -22,7 +18,6 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Build filter
     const where: any = {
       companyId: tenantId,
     }
@@ -30,77 +25,45 @@ export async function GET(request: NextRequest) {
     if (search) {
       where.OR = [
         { documentNumber: { contains: search, mode: 'insensitive' } },
-        { contact: { name: { contains: search, mode: 'insensitive' } } },
+        { contactName: { contains: search, mode: 'insensitive' } },
       ]
-    }
-
-    if (type) {
-      where.documentTypeId = type
     }
 
     if (status) {
       where.status = status
     }
 
-    // Get documents with pagination
-    const [documents, total] = await Promise.all([
-      prisma.document.findMany({
-        where,
-        include: {
-          contact: {
-            select: {
-              id: true,
-              name: true,
-              taxId: true,
-            },
-          },
-          documentType: {
-            select: {
-              id: true,
-              code: true,
-              name: true,
-            },
-          },
-          lineItems: {
-            include: {
-              product: {
-                select: {
-                  id: true,
-                  name: true,
-                },
-              },
-            },
-          },
-        },
-        orderBy: {
-          issueDate: 'desc',
-        },
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      prisma.document.count({ where }),
-    ])
+    if (typeId) {
+      where.documentTypeId = typeId
+    }
+
+    const documents = await prisma.document.findMany({
+      where,
+      include: {
+        documentType: true,
+        contact: true,
+        lines: true,
+      },
+      orderBy: {
+        documentDate: 'desc',
+      },
+      take: 100,
+    })
 
     return NextResponse.json({
       success: true,
       data: documents,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
     })
   } catch (error) {
     console.error('Error fetching documents:', error)
     return NextResponse.json(
-      { error: 'เกิดข้อผิดพลาดในการดึงข้อมูลเอกสาร' },
+      { error: 'เกิดข้อผิดพลาดในการดึงข้อมูล' },
       { status: 500 }
     )
   }
 }
 
-// POST /api/documents - Create new document
+// POST /api/documents - Create document
 export async function POST(request: NextRequest) {
   try {
     const tenantId = request.headers.get('x-tenant-id')
@@ -114,53 +77,45 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    console.log('📝 Creating document:', body)
-
     const {
       documentTypeId,
       contactId,
-      issueDate,
+      contactName,
+      contactAddress,
+      contactTaxId,
+      documentDate,
       dueDate,
       referenceNumber,
       notes,
-      terms,
-      lineItems,
+      lines,
       subtotal,
       discountAmount,
       vatAmount,
-      withholdingTaxAmount,
+      whtAmount,
       totalAmount,
-      status,
     } = body
 
-    // Validate required fields
-    if (!documentTypeId || !contactId || !issueDate || !lineItems || lineItems.length === 0) {
-      return NextResponse.json(
-        { error: 'กรุณากรอกข้อมูลให้ครบถ้วน' },
-        { status: 400 }
-      )
-    }
-
-    // Get document type to generate document number
-    const documentType = await prisma.documentType.findUnique({
-      where: { id: documentTypeId },
+    // Get document type for numbering
+    const docType = await prisma.documentType.findUnique({
+      where: { id: documentTypeId }
     })
 
-    if (!documentType) {
+    if (!docType) {
       return NextResponse.json(
-        { error: 'ไม่พบประเภทเอกสาร' },
+        { error: 'Document type not found' },
         { status: 400 }
       )
     }
 
     // Generate document number
+    const prefix = docType.code.toUpperCase()
     const year = new Date().getFullYear()
     const lastDoc = await prisma.document.findFirst({
       where: {
         companyId: tenantId,
         documentTypeId,
         documentNumber: {
-          startsWith: `${documentType.code}${year}`,
+          startsWith: `${prefix}${year}`,
         },
       },
       orderBy: {
@@ -169,69 +124,63 @@ export async function POST(request: NextRequest) {
     })
 
     let runningNumber = 1
-    if (lastDoc) {
-      const match = lastDoc.documentNumber.match(/\d+$/)
+    if (lastDoc && lastDoc.documentNumber) {
+      const match = lastDoc.documentNumber.match(/(\d+)$/)
       if (match) {
-        runningNumber = parseInt(match[0]) + 1
+        runningNumber = parseInt(match[1]) + 1
       }
     }
+    const documentNumber = `${prefix}${year}-${runningNumber.toString().padStart(4, '0')}`
 
-    const documentNumber = `${documentType.code}${year}-${runningNumber.toString().padStart(4, '0')}`
-
-    // Create document with line items
+    // Create document
     const document = await prisma.document.create({
       data: {
         companyId: tenantId,
         documentTypeId,
-        contactId,
         documentNumber,
-        issueDate: new Date(issueDate),
+        contactId,
+        contactName,
+        contactAddress,
+        contactTaxId,
+        documentDate: documentDate ? new Date(documentDate) : new Date(),
         dueDate: dueDate ? new Date(dueDate) : null,
         referenceNumber,
         notes,
-        terms,
-        subtotalAmount: subtotal,
+        subtotal: subtotal || 0,
         discountAmount: discountAmount || 0,
-        taxAmount: vatAmount || 0,
-        withholdingTaxAmount: withholdingTaxAmount || 0,
-        totalAmount: totalAmount,
-        status: status || 'draft',
-        createdById: userId,
-        lineItems: {
-          create: lineItems.map((item: any, index: number) => ({
+        amountBeforeVat: (subtotal || 0) - (discountAmount || 0),
+        vatAmount: vatAmount || 0,
+        whtAmount: whtAmount || 0,
+        totalAmount: totalAmount || 0,
+        status: 'draft',
+        createdBy: userId,
+        lines: {
+          create: (lines || []).map((item: any, index: number) => ({
             lineNumber: index + 1,
             productId: item.productId,
-            description: item.description || item.productName,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
+            productCode: item.productCode,
+            productName: item.productName || item.description || '',
+            description: item.description,
+            quantity: item.quantity || 1,
+            unit: item.unit,
+            unitPrice: item.unitPrice || 0,
+            discountPercent: item.discountPercent || 0,
             discountAmount: item.discountAmount || 0,
-            amount: item.amount,
+            amount: item.amount || 0,
+            vatAmount: item.vatAmount || 0,
+            whtRate: item.whtRate || 0,
+            whtAmount: item.whtAmount || 0,
           })),
         },
       },
       include: {
-        contact: true,
         documentType: true,
-        lineItems: {
-          include: {
-            product: true,
-          },
-        },
+        contact: true,
+        lines: true,
       },
     })
 
-    console.log('✅ Document created:', document.id, document.documentNumber)
-
-    // Process inventory movements for goods
-    // Only process for invoice, tax_invoice, receipt (out) and purchase_order, bill (in)
-    if (document.status === 'approved' || document.status === 'paid') {
-      await processDocumentStockMovements(
-        tenantId,
-        document.id,
-        documentType.code,
-        lineItems
-      )
-    }
+    console.log('✅ Document created:', document.id)
 
     return NextResponse.json({
       success: true,
@@ -245,4 +194,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

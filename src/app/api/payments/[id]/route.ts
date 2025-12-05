@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-// GET /api/payments/:id - Get single payment
+// GET /api/payments/:id
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -19,29 +19,11 @@ export async function GET(
 
     const payment = await prisma.payment.findFirst({
       where: {
-        id: id,
+        id,
         companyId: tenantId,
       },
       include: {
         contact: true,
-        account: true,
-        paymentItems: {
-          include: {
-            document: {
-              include: {
-                documentType: true,
-              },
-            },
-          },
-        },
-        createdBy: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
       },
     })
 
@@ -59,13 +41,13 @@ export async function GET(
   } catch (error) {
     console.error('Error fetching payment:', error)
     return NextResponse.json(
-      { error: 'เกิดข้อผิดพลาดในการดึงข้อมูล' },
+      { error: 'เกิดข้อผิดพลาด' },
       { status: 500 }
     )
   }
 }
 
-// DELETE /api/payments/:id - Delete payment
+// DELETE /api/payments/:id
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -81,14 +63,10 @@ export async function DELETE(
       )
     }
 
-    // Check if payment exists
     const payment = await prisma.payment.findFirst({
       where: {
-        id: id,
+        id,
         companyId: tenantId,
-      },
-      include: {
-        paymentItems: true,
       },
     })
 
@@ -99,57 +77,18 @@ export async function DELETE(
       )
     }
 
-    // Reverse document payment status
-    for (const item of payment.paymentItems) {
-      const document = await prisma.document.findUnique({
-        where: { id: item.documentId },
-        include: {
-          payments: {
-            where: {
-              id: { not: id },
-            },
-          },
-        },
-      })
-
-      if (document) {
-        const totalPaid = document.payments.reduce((sum, p) => sum + p.amount, 0)
-        const newStatus = totalPaid >= document.totalAmount 
-          ? 'paid' 
-          : totalPaid > 0 
-            ? 'partial' 
-            : 'sent'
-
-        await prisma.document.update({
-          where: { id: item.documentId },
-          data: {
-            paidAmount: totalPaid,
-            status: newStatus,
-          },
-        })
-      }
-    }
-
-    // Delete payment items first
-    await prisma.paymentItem.deleteMany({
-      where: { paymentId: id },
-    })
-
-    // Delete payment
     await prisma.payment.delete({
-      where: { id: id },
+      where: { id },
     })
-
-    console.log('✅ Payment deleted:', id)
 
     return NextResponse.json({
       success: true,
       message: 'ลบรายการชำระเงินเรียบร้อยแล้ว',
     })
   } catch (error) {
-    console.error('❌ Error deleting payment:', error)
+    console.error('Error deleting payment:', error)
     return NextResponse.json(
-      { error: 'เกิดข้อผิดพลาดในการลบรายการ' },
+      { error: 'เกิดข้อผิดพลาด' },
       { status: 500 }
     )
   }
